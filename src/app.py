@@ -41,7 +41,12 @@ app.secret_key = os.getenv(
 
 MONGO_URI = os.getenv("MONGO_URI")
 
-cliente_mongo = MongoClient(MONGO_URI)
+cliente_mongo = MongoClient(
+    MONGO_URI,
+    serverSelectionTimeoutMS=30000,
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000
+)
 
 db = cliente_mongo["routemind_db"]
 
