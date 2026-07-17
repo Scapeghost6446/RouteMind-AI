@@ -1,14 +1,18 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-import mysql.connector
+
 import pandas as pd
 import requests
 import os
 import time
 import re
 
+from datetime import datetime, date
+
+from pymongo import MongoClient
 from geopy.geocoders import Nominatim
 from dotenv import load_dotenv
 from openai import OpenAI
+
 from services.ia_logistica import analizar_pedidos
 
 
@@ -32,13 +36,45 @@ app.secret_key = os.getenv(
 
 
 # =====================================================
+# CONEXIÓN A MONGODB
+# =====================================================
+
+MONGO_URI = os.getenv("MONGO_URI")
+
+cliente_mongo = MongoClient(MONGO_URI)
+
+db = cliente_mongo["routemind_db"]
+
+coleccion_pedidos = db["pedidos"]
+
+coleccion_historial = db["historial_estados"]
+
+
+# =====================================================
+# PROBAR CONEXIÓN
+# =====================================================
+
+try:
+
+    cliente_mongo.admin.command("ping")
+
+    print("===================================")
+    print("CONEXIÓN EXITOSA A MONGODB")
+    print("===================================")
+
+except Exception as error:
+
+    print("ERROR DE CONEXIÓN A MONGODB:")
+    print(error)
+
+
+# =====================================================
 # CONFIGURACIÓN DE OPENAI
 # =====================================================
 
 OPENAI_API_KEY = os.getenv(
     "OPENAI_API_KEY"
 )
-
 
 if OPENAI_API_KEY:
 
@@ -52,37 +88,6 @@ else:
 
 
 # =====================================================
-# CONEXIÓN A MYSQL
-# =====================================================
-
-def obtener_conexion():
-
-    return mysql.connector.connect(
-
-        host=os.getenv(
-            "ROUTEMIND_DB_HOST",
-            "localhost"
-        ),
-
-        user=os.getenv(
-            "ROUTEMIND_DB_USER",
-            "root"
-        ),
-
-        password=os.getenv(
-            "ROUTEMIND_DB_PASSWORD",
-            "080905"
-        ),
-
-        database=os.getenv(
-            "ROUTEMIND_DB_NAME",
-            "routemind_db"
-        )
-
-    )
-
-
-# =====================================================
 # NORMALIZAR DIRECCIÓN
 # =====================================================
 
@@ -90,39 +95,27 @@ def normalizar_direccion(direccion):
 
     direccion = direccion.upper().strip()
 
-
     reemplazos = {
 
         "AND ": "ANDADOR ",
-
         "MZ ": "MANZANA ",
-
         "LT ": "LOTE ",
-
         "COL ": "COLONIA ",
-
-        "GRO": "GUERRERO",
-
+        "GRO": "GUERRERO ",
         "CDMX": "CIUDAD DE MÉXICO"
 
     }
 
-
     for original, nuevo in reemplazos.items():
 
         direccion = direccion.replace(
-
             original,
-
             nuevo
-
         )
-
 
     if "MÉXICO" not in direccion:
 
         direccion += ", MÉXICO"
-
 
     return direccion
 
@@ -135,23 +128,14 @@ def extraer_datos_direccion(direccion):
 
     direccion_mayusculas = direccion.upper()
 
-
     datos = {
 
         "colonia": None,
-
         "codigo_postal": None,
-
         "ciudad": None,
-
         "estado": None
 
     }
-
-
-    # -----------------------------------------------
-    # CÓDIGO POSTAL
-    # -----------------------------------------------
 
     codigo_postal = re.search(
 
@@ -161,7 +145,6 @@ def extraer_datos_direccion(direccion):
 
     )
 
-
     if codigo_postal:
 
         datos["codigo_postal"] = (
@@ -169,11 +152,6 @@ def extraer_datos_direccion(direccion):
             codigo_postal.group()
 
         )
-
-
-    # -----------------------------------------------
-    # COLONIA
-    # -----------------------------------------------
 
     colonia = re.search(
 
@@ -183,7 +161,6 @@ def extraer_datos_direccion(direccion):
 
     )
 
-
     if colonia:
 
         datos["colonia"] = (
@@ -192,39 +169,22 @@ def extraer_datos_direccion(direccion):
 
         )
 
-
-    # -----------------------------------------------
-    # ESTADO
-    # -----------------------------------------------
-
     estados = [
 
         "GUERRERO",
-
         "CIUDAD DE MÉXICO",
-
         "JALISCO",
-
         "MICHOACÁN",
-
         "PUEBLA",
-
         "OAXACA",
-
         "VERACRUZ",
-
         "MORELOS",
-
         "QUERÉTARO",
-
         "SONORA",
-
         "SINALOA",
-
         "NAYARIT"
 
     ]
-
 
     for estado in estados:
 
@@ -234,11 +194,6 @@ def extraer_datos_direccion(direccion):
 
             break
 
-
-    # -----------------------------------------------
-    # CIUDAD
-    # -----------------------------------------------
-
     if "ACAPULCO" in direccion_mayusculas:
 
         datos["ciudad"] = (
@@ -246,7 +201,6 @@ def extraer_datos_direccion(direccion):
             "ACAPULCO DE JUÁREZ"
 
         )
-
 
     return datos
 
@@ -258,63 +212,40 @@ def extraer_datos_direccion(direccion):
 def construir_direccion_respaldo(direccion):
 
     datos = extraer_datos_direccion(
-
         direccion
-
     )
 
-
     partes = []
-
 
     if datos["colonia"]:
 
         partes.append(
-
             datos["colonia"]
-
         )
-
 
     if datos["codigo_postal"]:
 
         partes.append(
-
             datos["codigo_postal"]
-
         )
-
 
     if datos["ciudad"]:
 
         partes.append(
-
             datos["ciudad"]
-
         )
-
 
     if datos["estado"]:
 
         partes.append(
-
             datos["estado"]
-
         )
 
-
     partes.append(
-
         "MÉXICO"
-
     )
 
-
-    return ", ".join(
-
-        partes
-
-    )
+    return ", ".join(partes)
 
 
 # =====================================================
@@ -325,39 +256,23 @@ def obtener_coordenadas(direccion):
 
     try:
 
-
         geolocator = Nominatim(
 
             user_agent="RouteMindAI"
 
         )
 
-
-        # =================================================
-        # PRIMERA BÚSQUEDA: DIRECCIÓN COMPLETA
-        # =================================================
-
-
         direccion_normalizada = normalizar_direccion(
-
             direccion
-
         )
 
-
         print(
-
             "Buscando dirección exacta:"
-
         )
-
 
         print(
-
             direccion_normalizada
-
         )
-
 
         location = geolocator.geocode(
 
@@ -373,19 +288,13 @@ def obtener_coordenadas(direccion):
 
         )
 
-
         time.sleep(1)
-
 
         if location:
 
-
             print(
-
                 "Ubicación exacta encontrada"
-
             )
-
 
             return (
 
@@ -397,12 +306,6 @@ def obtener_coordenadas(direccion):
 
             )
 
-
-        # =================================================
-        # SEGUNDA BÚSQUEDA: UBICACIÓN APROXIMADA
-        # =================================================
-
-
         direccion_respaldo = (
 
             construir_direccion_respaldo(
@@ -413,20 +316,13 @@ def obtener_coordenadas(direccion):
 
         )
 
-
         print(
-
             "Buscando ubicación aproximada:"
-
         )
-
 
         print(
-
             direccion_respaldo
-
         )
-
 
         location = geolocator.geocode(
 
@@ -442,19 +338,13 @@ def obtener_coordenadas(direccion):
 
         )
 
-
         time.sleep(1)
-
 
         if location:
 
-
             print(
-
                 "Ubicación aproximada encontrada"
-
             )
-
 
             return (
 
@@ -466,18 +356,9 @@ def obtener_coordenadas(direccion):
 
             )
 
-
-        # =================================================
-        # NO ENCONTRADA
-        # =================================================
-
-
         print(
-
             "No se encontró la ubicación"
-
         )
-
 
         return (
 
@@ -488,24 +369,14 @@ def obtener_coordenadas(direccion):
             "No encontrada"
 
         )
-
 
     except Exception as error:
 
-
         print(
-
             "Error al geolocalizar:"
-
         )
 
-
-        print(
-
-            error
-
-        )
-
+        print(error)
 
         return (
 
@@ -517,28 +388,19 @@ def obtener_coordenadas(direccion):
 
         )
 
-@app.route(
-
-    "/buscar-ubicacion"
-
-)
 
 # =====================================================
 # BUSCAR UBICACIÓN
 # =====================================================
 
+@app.route("/buscar-ubicacion")
 def buscar_ubicacion():
 
-
     direccion = request.args.get(
-
         "direccion"
-
     )
 
-
     if not direccion:
-
 
         return {
 
@@ -546,20 +408,15 @@ def buscar_ubicacion():
 
         }
 
-
     latitud, longitud, tipo = (
 
         obtener_coordenadas(
-
             direccion
-
         )
 
     )
 
-
     if latitud is None:
-
 
         return {
 
@@ -569,9 +426,7 @@ def buscar_ubicacion():
 
         }
 
-
     if tipo == "Exacta":
-
 
         mensaje = (
 
@@ -579,36 +434,27 @@ def buscar_ubicacion():
 
         )
 
-
     else:
-
 
         mensaje = (
 
-            "Se encontró una ubicación aproximada."
+            "Se encontró una ubicación aproximada. "
 
-            " Verifica el punto en el mapa."
+            "Verifica el punto en el mapa."
 
         )
 
-
     return {
-
 
         "encontrada": True,
 
-
         "latitud": latitud,
-
 
         "longitud": longitud,
 
-
         "tipo": tipo,
 
-
         "mensaje": mensaje
-
 
     }
 
@@ -620,107 +466,51 @@ def buscar_ubicacion():
 @app.route("/")
 def index():
 
-    conexion = obtener_conexion()
+    total_pedidos = (
 
-    cursor = conexion.cursor(
-
-        dictionary=True
+        coleccion_pedidos.count_documents({})
 
     )
 
+    pendientes = (
 
-    cursor.execute(
+        coleccion_pedidos.count_documents({
 
-        """
+            "estado": "Pendiente"
 
-        SELECT COUNT(*) AS total
-
-        FROM pedidos
-
-        """
+        })
 
     )
 
+    en_ruta = (
 
-    total_pedidos = cursor.fetchone()["total"]
+        coleccion_pedidos.count_documents({
 
+            "estado": "En ruta"
 
-    cursor.execute(
-
-        """
-
-        SELECT COUNT(*) AS total
-
-        FROM pedidos
-
-        WHERE estado = 'Pendiente'
-
-        """
+        })
 
     )
 
+    entregados = (
 
-    pendientes = cursor.fetchone()["total"]
+        coleccion_pedidos.count_documents({
 
+            "estado": "Entregado"
 
-    cursor.execute(
-
-        """
-
-        SELECT COUNT(*) AS total
-
-        FROM pedidos
-
-        WHERE estado = 'En ruta'
-
-        """
+        })
 
     )
 
+    sin_ubicacion = (
 
-    en_ruta = cursor.fetchone()["total"]
+        coleccion_pedidos.count_documents({
 
+            "origen_ubicacion": "No encontrada"
 
-    cursor.execute(
-
-        """
-
-        SELECT COUNT(*) AS total
-
-        FROM pedidos
-
-        WHERE estado = 'Entregado'
-
-        """
+        })
 
     )
-
-
-    entregados = cursor.fetchone()["total"]
-
-
-    cursor.execute(
-
-        """
-
-        SELECT COUNT(*) AS total
-
-        FROM pedidos
-
-        WHERE origen_ubicacion = 'No encontrada'
-
-        """
-
-    )
-
-
-    sin_ubicacion = cursor.fetchone()["total"]
-
-
-    cursor.close()
-
-    conexion.close()
-
 
     return render_template(
 
@@ -746,30 +536,21 @@ def index():
 @app.route("/pedidos")
 def pedidos():
 
-    conexion = obtener_conexion()
+    pedidos = list(
 
-    cursor = conexion.cursor(
-        dictionary=True
-    )
+        coleccion_pedidos.find(
 
-    try:
+            {}
 
-        cursor.execute(
-            """
-            SELECT *
-            FROM pedidos
-            ORDER BY id DESC
-            """
+        ).sort(
+
+            "id",
+
+            -1
+
         )
 
-        pedidos = cursor.fetchall()
-
-    finally:
-
-        cursor.close()
-
-        conexion.close()
-
+    )
 
     return render_template(
 
@@ -785,67 +566,69 @@ def pedidos():
 # =====================================================
 
 @app.route(
+
     "/registrar-pedido",
+
     methods=["GET", "POST"]
+
 )
 def registrar_pedido():
 
     if request.method == "GET":
 
         return render_template(
-            "RegistrarPedido.html"
-        )
 
+            "RegistrarPedido.html"
+
+        )
 
     cliente = request.form.get(
         "cliente"
     )
 
-
     direccion = request.form.get(
         "direccion"
     )
-
 
     producto = request.form.get(
         "producto"
     )
 
-
     fecha_entrega = request.form.get(
         "fecha_entrega"
     )
-
 
     prioridad = request.form.get(
         "prioridad"
     )
 
-
     latitud_manual = request.form.get(
         "latitud"
     )
-
 
     longitud_manual = request.form.get(
         "longitud"
     )
 
-
     if not cliente or not direccion or not producto:
 
         flash(
-            "Todos los campos obligatorios deben completarse.",
-            "danger"
-        )
 
+            "Todos los campos obligatorios deben completarse.",
+
+            "danger"
+
+        )
 
         return redirect(
-            url_for(
-                "registrar_pedido"
-            )
-        )
 
+            url_for(
+
+                "registrar_pedido"
+
+            )
+
+        )
 
     try:
 
@@ -855,134 +638,107 @@ def registrar_pedido():
                 latitud_manual
             )
 
-
             longitud = float(
                 longitud_manual
             )
 
-
             origen_ubicacion = "Exacta"
-
 
         else:
 
             latitud, longitud, origen_ubicacion = (
 
                 obtener_coordenadas(
+
                     direccion
+
                 )
 
             )
 
-
     except Exception as error:
 
         print(
-            "Error obteniendo coordenadas:",
-            error
-        )
 
+            "Error obteniendo coordenadas:",
+
+            error
+
+        )
 
         latitud = None
 
-
         longitud = None
-
 
         origen_ubicacion = "No encontrada"
 
+    ultimo_pedido = (
 
-    conexion = obtener_conexion()
+        coleccion_pedidos.find_one(
 
+            sort=[
 
-    cursor = conexion.cursor()
+                ("id", -1)
 
+            ]
+
+        )
+
+    )
+
+    if ultimo_pedido:
+
+        nuevo_id = (
+
+            ultimo_pedido.get(
+
+                "id",
+
+                0
+
+            )
+
+            + 1
+
+        )
+
+    else:
+
+        nuevo_id = 1
+
+    pedido = {
+
+        "id": nuevo_id,
+
+        "cliente": cliente,
+
+        "direccion": direccion,
+
+        "producto": producto,
+
+        "fecha_entrega": fecha_entrega,
+
+        "prioridad": prioridad or "Media",
+
+        "estado": "Pendiente",
+
+        "latitud": latitud,
+
+        "longitud": longitud,
+
+        "origen_ubicacion": origen_ubicacion,
+
+        "fecha_registro": datetime.now()
+
+    }
 
     try:
 
-        consulta = """
+        coleccion_pedidos.insert_one(
 
-            INSERT INTO pedidos (
-
-                cliente,
-
-                direccion,
-
-                producto,
-
-                fecha_entrega,
-
-                prioridad,
-
-                estado,
-
-                latitud,
-
-                longitud,
-
-                origen_ubicacion
-
-            )
-
-            VALUES (
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s,
-
-                %s
-
-            )
-
-        """
-
-
-        valores = (
-
-            cliente,
-
-            direccion,
-
-            producto,
-
-            fecha_entrega,
-
-            prioridad,
-
-            "Pendiente",
-
-            latitud,
-
-            longitud,
-
-            origen_ubicacion
+            pedido
 
         )
-
-
-        cursor.execute(
-
-            consulta,
-
-            valores
-
-        )
-
-
-        conexion.commit()
-
 
         flash(
 
@@ -992,11 +748,7 @@ def registrar_pedido():
 
         )
 
-
     except Exception as error:
-
-        conexion.rollback()
-
 
         print(
 
@@ -1006,7 +758,6 @@ def registrar_pedido():
 
         )
 
-
         flash(
 
             f"Error al registrar el pedido: {error}",
@@ -1014,15 +765,6 @@ def registrar_pedido():
             "danger"
 
         )
-
-
-    finally:
-
-        cursor.close()
-
-
-        conexion.close()
-
 
     return redirect(
 
@@ -1033,6 +775,7 @@ def registrar_pedido():
         )
 
     )
+
 
 # =====================================================
 # IMPORTAR CSV
@@ -1045,9 +788,7 @@ def registrar_pedido():
     methods=["POST"]
 
 )
-
 def importar_csv():
-
 
     archivo = request.files.get(
 
@@ -1055,9 +796,7 @@ def importar_csv():
 
     )
 
-
     if not archivo:
-
 
         flash(
 
@@ -1065,23 +804,19 @@ def importar_csv():
 
         )
 
-
         return redirect(
 
             "/pedidos"
 
         )
 
-
     try:
-
 
         df = pd.read_csv(
 
             archivo
 
         )
-
 
         columnas_requeridas = [
 
@@ -1097,12 +832,9 @@ def importar_csv():
 
         ]
 
-
         for columna in columnas_requeridas:
 
-
             if columna not in df.columns:
-
 
                 flash(
 
@@ -1110,117 +842,123 @@ def importar_csv():
 
                 )
 
-
                 return redirect(
 
                     "/pedidos"
 
                 )
 
+        ultimo_pedido = (
 
-        conexion = obtener_conexion()
+            coleccion_pedidos.find_one(
 
-        cursor = conexion.cursor()
+                sort=[
 
+                    ("id", -1)
+
+                ]
+
+            )
+
+        )
+
+        siguiente_id = (
+
+            ultimo_pedido.get(
+
+                "id",
+
+                0
+
+            )
+
+            + 1
+
+            if ultimo_pedido
+
+            else 1
+
+        )
+
+        pedidos_insertar = []
 
         for _, fila in df.iterrows():
-
 
             latitud, longitud, origen = (
 
                 obtener_coordenadas(
 
+                    str(
+
+                        fila["direccion"]
+
+                    )
+
+                )
+
+            )
+
+            pedido = {
+
+                "id": siguiente_id,
+
+                "cliente": str(
+
+                    fila["cliente"]
+
+                ),
+
+                "direccion": str(
+
                     fila["direccion"]
 
-                )
+                ),
+
+                "producto": str(
+
+                    fila["producto"]
+
+                ),
+
+                "fecha_entrega": str(
+
+                    fila["fecha_entrega"]
+
+                ),
+
+                "prioridad": str(
+
+                    fila["prioridad"]
+
+                ),
+
+                "estado": "Pendiente",
+
+                "latitud": latitud,
+
+                "longitud": longitud,
+
+                "origen_ubicacion": origen,
+
+                "fecha_registro": datetime.now()
+
+            }
+
+            pedidos_insertar.append(
+
+                pedido
 
             )
 
+            siguiente_id += 1
 
-            cursor.execute(
+        if pedidos_insertar:
 
-                """
+            coleccion_pedidos.insert_many(
 
-                INSERT INTO pedidos
-
-                (
-
-                    cliente,
-
-                    direccion,
-
-                    producto,
-
-                    fecha_entrega,
-
-                    prioridad,
-
-                    estado,
-
-                    latitud,
-
-                    longitud,
-
-                    origen_ubicacion
-
-                )
-
-                VALUES
-
-                (
-
-                    %s,
-
-                    %s,
-
-                    %s,
-
-                    %s,
-
-                    %s,
-
-                    'Pendiente',
-
-                    %s,
-
-                    %s,
-
-                    %s
-
-                )
-
-                """,
-
-                (
-
-                    fila["cliente"],
-
-                    fila["direccion"],
-
-                    fila["producto"],
-
-                    fila["fecha_entrega"],
-
-                    fila["prioridad"],
-
-                    latitud,
-
-                    longitud,
-
-                    origen
-
-                )
+                pedidos_insertar
 
             )
-
-
-        conexion.commit()
-
-
-        cursor.close()
-
-        conexion.close()
-
 
         flash(
 
@@ -1228,16 +966,13 @@ def importar_csv():
 
         )
 
-
     except Exception as error:
-
 
         flash(
 
             f"Error al importar CSV: {error}"
 
         )
-
 
     return redirect(
 
@@ -1253,9 +988,7 @@ def importar_csv():
 @app.route("/importar-api")
 def importar_api():
 
-
     try:
-
 
         respuesta = requests.get(
 
@@ -1265,17 +998,43 @@ def importar_api():
 
         )
 
-
         usuarios = respuesta.json()
 
+        ultimo_pedido = (
 
-        conexion = obtener_conexion()
+            coleccion_pedidos.find_one(
 
-        cursor = conexion.cursor()
+                sort=[
 
+                    ("id", -1)
+
+                ]
+
+            )
+
+        )
+
+        siguiente_id = (
+
+            ultimo_pedido.get(
+
+                "id",
+
+                0
+
+            )
+
+            + 1
+
+            if ultimo_pedido
+
+            else 1
+
+        )
+
+        pedidos_insertar = []
 
         for usuario in usuarios[:5]:
-
 
             direccion = (
 
@@ -1287,7 +1046,6 @@ def importar_api():
 
             )
 
-
             latitud, longitud, origen = (
 
                 obtener_coordenadas(
@@ -1298,87 +1056,45 @@ def importar_api():
 
             )
 
+            pedido = {
 
-            cursor.execute(
+                "id": siguiente_id,
 
-                """
+                "cliente": usuario["name"],
 
-                INSERT INTO pedidos
+                "direccion": direccion,
 
-                (
+                "producto": "Paquete de prueba",
 
-                    cliente,
+                "fecha_entrega": date.today().isoformat(),
 
-                    direccion,
+                "prioridad": "Media",
 
-                    producto,
+                "estado": "Pendiente",
 
-                    fecha_entrega,
+                "latitud": latitud,
 
-                    prioridad,
+                "longitud": longitud,
 
-                    estado,
+                "origen_ubicacion": origen,
 
-                    latitud,
+                "fecha_registro": datetime.now()
 
-                    longitud,
+            }
 
-                    origen_ubicacion
+            pedidos_insertar.append(
 
-                )
-
-                VALUES
-
-                (
-
-                    %s,
-
-                    %s,
-
-                    %s,
-
-                    CURDATE(),
-
-                    'Media',
-
-                    'Pendiente',
-
-                    %s,
-
-                    %s,
-
-                    %s
-
-                )
-
-                """,
-
-                (
-
-                    usuario["name"],
-
-                    direccion,
-
-                    "Paquete de prueba",
-
-                    latitud,
-
-                    longitud,
-
-                    origen
-
-                )
+                pedido
 
             )
 
+            siguiente_id += 1
 
-        conexion.commit()
+        coleccion_pedidos.insert_many(
 
+            pedidos_insertar
 
-        cursor.close()
-
-        conexion.close()
-
+        )
 
         flash(
 
@@ -1386,16 +1102,13 @@ def importar_api():
 
         )
 
-
     except Exception as error:
-
 
         flash(
 
             f"Error al importar desde API: {error}"
 
         )
-
 
     return redirect(
 
@@ -1413,7 +1126,6 @@ def importar_api():
     "/cambiar-estado/<int:pedido_id>/<nuevo_estado>"
 
 )
-
 def cambiar_estado(
 
     pedido_id,
@@ -1422,9 +1134,7 @@ def cambiar_estado(
 
 ):
 
-
     transiciones = {
-
 
         "Pendiente": [
 
@@ -1432,13 +1142,11 @@ def cambiar_estado(
 
         ],
 
-
         "En preparación": [
 
             "En ruta"
 
         ],
-
 
         "En ruta": [
 
@@ -1446,47 +1154,21 @@ def cambiar_estado(
 
         ],
 
-
         "Entregado": []
 
     }
 
+    pedido = coleccion_pedidos.find_one(
 
-    conexion = obtener_conexion()
+        {
 
-    cursor = conexion.cursor(
+            "id": pedido_id
 
-        dictionary=True
-
-    )
-
-
-    cursor.execute(
-
-        """
-
-        SELECT estado
-
-        FROM pedidos
-
-        WHERE id = %s
-
-        """,
-
-        (
-
-            pedido_id,
-
-        )
+        }
 
     )
-
-
-    pedido = cursor.fetchone()
-
 
     if not pedido:
-
 
         flash(
 
@@ -1494,21 +1176,17 @@ def cambiar_estado(
 
         )
 
-
-        cursor.close()
-
-        conexion.close()
-
-
         return redirect(
 
             "/pedidos"
 
         )
 
+    estado_anterior = pedido.get(
 
-    estado_anterior = pedido["estado"]
+        "estado"
 
+    )
 
     if nuevo_estado not in transiciones.get(
 
@@ -1518,18 +1196,11 @@ def cambiar_estado(
 
     ):
 
-
         flash(
 
             "Transición de estado no permitida."
 
         )
-
-
-        cursor.close()
-
-        conexion.close()
-
 
         return redirect(
 
@@ -1537,87 +1208,49 @@ def cambiar_estado(
 
         )
 
+    coleccion_pedidos.update_one(
 
-    cursor.execute(
+        {
 
-        """
+            "id": pedido_id
 
-        UPDATE pedidos
+        },
 
-        SET estado = %s
+        {
 
-        WHERE id = %s
+            "$set": {
 
-        """,
+                "estado": nuevo_estado
 
-        (
+            }
 
-            nuevo_estado,
-
-            pedido_id
-
-        )
+        }
 
     )
 
+    historial = {
 
-    cursor.execute(
+        "pedido_id": pedido_id,
 
-        """
+        "estado_anterior": estado_anterior,
 
-        INSERT INTO historial_estados
+        "estado_nuevo": nuevo_estado,
 
-        (
+        "fecha_cambio": datetime.now()
 
-            pedido_id,
+    }
 
-            estado_anterior,
+    coleccion_historial.insert_one(
 
-            estado_nuevo
-
-        )
-
-        VALUES
-
-        (
-
-            %s,
-
-            %s,
-
-            %s
-
-        )
-
-        """,
-
-        (
-
-            pedido_id,
-
-            estado_anterior,
-
-            nuevo_estado
-
-        )
+        historial
 
     )
-
-
-    conexion.commit()
-
-
-    cursor.close()
-
-    conexion.close()
-
 
     flash(
 
         "Estado actualizado correctamente."
 
     )
-
 
     return redirect(
 
@@ -1633,59 +1266,107 @@ def cambiar_estado(
 @app.route("/rutas")
 def rutas():
 
+    ubicaciones = []
 
-    conexion = obtener_conexion()
-
-    cursor = conexion.cursor(
-
-        dictionary=True
-
-    )
+    sin_ubicacion = []
 
 
-    cursor.execute(
+    # ==========================================
+    # PEDIDOS CON UBICACIÓN
+    # ==========================================
 
-        """
+    pedidos_con_ubicacion = coleccion_pedidos.find({
 
-        SELECT *
+        "estado": {
 
-        FROM pedidos
+            "$ne": "Entregado"
 
-        WHERE estado != 'Entregado'
+        },
 
-        AND latitud IS NOT NULL
+        "latitud": {
 
-        AND longitud IS NOT NULL
+            "$ne": None
 
-        """
+        },
 
-    )
+        "longitud": {
 
+            "$ne": None
 
-    ubicaciones = cursor.fetchall()
+        }
 
-
-    cursor.execute(
-
-        """
-
-        SELECT *
-
-        FROM pedidos
-
-        WHERE origen_ubicacion = 'No encontrada'
-
-        """
-
-    )
+    })
 
 
-    sin_ubicacion = cursor.fetchall()
+    for pedido in pedidos_con_ubicacion:
+
+        pedido["id"] = str(
+
+            pedido["_id"]
+
+        )
 
 
-    cursor.close()
+        del pedido["_id"]
 
-    conexion.close()
+
+        ubicaciones.append(
+
+            pedido
+
+        )
+
+
+    # ==========================================
+    # PEDIDOS SIN UBICACIÓN
+    # ==========================================
+
+    pedidos_sin_ubicacion = coleccion_pedidos.find({
+
+        "$or": [
+
+            {
+
+                "latitud": None
+
+            },
+
+            {
+
+                "longitud": None
+
+            },
+
+            {
+
+                "origen_ubicacion":
+
+                "No encontrada"
+
+            }
+
+        ]
+
+    })
+
+
+    for pedido in pedidos_sin_ubicacion:
+
+        pedido["id"] = str(
+
+            pedido["_id"]
+
+        )
+
+
+        del pedido["_id"]
+
+
+        sin_ubicacion.append(
+
+            pedido
+
+        )
 
 
     return render_template(
@@ -1703,38 +1384,52 @@ def rutas():
 # IA LOGÍSTICA
 # =====================================================
 
-@app.route("/ia/logistica", methods=["GET", "POST"])
+@app.route(
+
+    "/ia/logistica",
+
+    methods=["GET", "POST"]
+
+)
 def ia_logistica():
 
-    conexion = obtener_conexion()
+    pedidos = list(
 
-    cursor = conexion.cursor(
-        dictionary=True
+        coleccion_pedidos.find({
+
+            "estado": {
+
+                "$ne": "Entregado"
+
+            }
+
+        })
+
     )
 
-    try:
+    pedidos.sort(
 
-        cursor.execute(
-            """
-            SELECT *
-            FROM pedidos
-            WHERE estado != 'Entregado'
-            ORDER BY fecha_entrega ASC
-            """
+        key=lambda pedido:
+
+        str(
+
+            pedido.get(
+
+                "fecha_entrega",
+
+                ""
+
+            )
+
         )
 
-        pedidos = cursor.fetchall()
+    )
 
-        analisis = analizar_pedidos(
-            pedidos
-        )
+    analisis = analizar_pedidos(
 
-    finally:
+        pedidos
 
-        cursor.close()
-
-        conexion.close()
-
+    )
 
     return render_template(
 
@@ -1752,42 +1447,43 @@ def ia_logistica():
 @app.route("/reportes")
 def reportes():
 
+    datos = list(
 
-    conexion = obtener_conexion()
+        coleccion_pedidos.aggregate([
 
-    cursor = conexion.cursor(
+            {
 
-        dictionary=True
+                "$group": {
+
+                    "_id": "$estado",
+
+                    "cantidad": {
+
+                        "$sum": 1
+
+                    }
+
+                }
+
+            },
+
+            {
+
+                "$project": {
+
+                    "_id": 0,
+
+                    "estado": "$_id",
+
+                    "cantidad": 1
+
+                }
+
+            }
+
+        ])
 
     )
-
-
-    cursor.execute(
-
-        """
-
-        SELECT
-
-            estado,
-
-            COUNT(*) AS cantidad
-
-        FROM pedidos
-
-        GROUP BY estado
-
-        """
-
-    )
-
-
-    datos = cursor.fetchall()
-
-
-    cursor.close()
-
-    conexion.close()
-
 
     return render_template(
 
