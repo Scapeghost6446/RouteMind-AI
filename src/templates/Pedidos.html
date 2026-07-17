@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Pedidos - RouteMind AI</title>
+
+
+    <!-- Bootstrap -->
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+
+    <style>
+
+        body {
+
+            background-color: #f8f9fa;
+
+        }
+
+
+        .sidebar {
+
+            min-height: 100vh;
+
+            background-color: #212529;
+
+        }
+
+
+        .sidebar a {
+
+            color: white;
+
+            text-decoration: none;
+
+            display: block;
+
+            padding: 12px;
+
+        }
+
+
+        .sidebar a:hover {
+
+            background-color: #343a40;
+
+        }
+
+
+        .card {
+
+            border: none;
+
+        }
+
+
+        .table td {
+
+            vertical-align: middle;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container-fluid">
+
+
+    <div class="row">
+
+
+        <!-- ================================================= -->
+        <!-- BARRA DE NAVEGACIÓN -->
+        <!-- ================================================= -->
+
+
+        <div class="col-md-2 sidebar">
+
+
+            <h3 class="text-white text-center mt-3">
+
+                RouteMind AI
+
+            </h3>
+
+
+            <hr class="text-white">
+
+
+            <a href="/">
+
+                🏠 Dashboard
+
+            </a>
+
+
+            <a href="/pedidos">
+
+                📦 Pedidos
+
+            </a>
+
+                        <a href="/ia/logistica">
+
+                🤖 Análisis IA
+
+            </a>
+
+            <a href="/registrar-pedido">
+
+                ➕ Registrar Pedido
+
+            </a>
+
+
+            <a href="/rutas">
+
+                🗺️ Rutas
+
+            </a>
+
+
+            <a href="/reportes">
+
+                📊 Reportes
+
+            </a>
+
+
+            <a href="/logout">
+
+                🚪 Salir
+
+            </a>
+
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- CONTENIDO PRINCIPAL -->
+        <!-- ================================================= -->
+
+
+        <div class="col-md-10 p-4">
+
+
+            <!-- TÍTULO -->
+
+
+            <div class="d-flex justify-content-between align-items-center">
+
+
+                <div>
+
+
+                    <h2>
+
+                        Gestión de Pedidos
+
+                    </h2>
+
+
+                    <p class="text-muted">
+
+                        Administra y controla los pedidos registrados.
+
+                    </p>
+
+
+                </div>
+
+
+                <div>
+
+
+                    <a
+
+                        href="/registrar-pedido"
+
+                        class="btn btn-primary">
+
+
+                        ➕ Nuevo Pedido
+
+
+                    </a>
+
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- MENSAJES DEL SISTEMA -->
+            <!-- ================================================= -->
+
+
+            {% with mensajes = get_flashed_messages() %}
+
+
+                {% if mensajes %}
+
+
+                    {% for mensaje in mensajes %}
+
+
+                        <div
+
+                            class="alert alert-info alert-dismissible fade show mt-3"
+
+                            role="alert">
+
+
+                            {{ mensaje }}
+
+
+                            <button
+
+                                type="button"
+
+                                class="btn-close"
+
+                                data-bs-dismiss="alert">
+
+
+                            </button>
+
+
+                        </div>
+
+
+                    {% endfor %}
+
+
+                {% endif %}
+
+
+            {% endwith %}
+
+
+            <!-- ================================================= -->
+            <!-- IMPORTAR PEDIDOS -->
+            <!-- ================================================= -->
+
+
+            <div class="card shadow mt-4">
+
+
+                <div class="card-body">
+
+
+                    <h5 class="card-title">
+
+
+                        Importar Pedidos
+
+
+                    </h5>
+
+
+                    <p class="text-muted">
+
+
+                        Puedes cargar pedidos mediante un archivo CSV
+
+                        o utilizar una API de ejemplo.
+
+
+                    </p>
+
+
+                    <div class="row">
+
+
+                        <!-- IMPORTAR CSV -->
+
+
+                        <div class="col-md-6">
+
+
+                            <div class="border rounded p-3">
+
+
+                                <h6>
+
+
+                                    📂 Importar archivo CSV
+
+
+                                </h6>
+
+
+                                <form
+
+
+                                    action="/importar-csv"
+
+                                    method="POST"
+
+                                    enctype="multipart/form-data">
+
+
+                                    <input
+
+
+                                        type="file"
+
+                                        name="archivo"
+
+                                        class="form-control mt-3"
+
+                                        accept=".csv"
+
+                                        required>
+
+
+                                    <button
+
+
+                                        type="submit"
+
+                                        class="btn btn-primary mt-3">
+
+
+                                        Importar CSV
+
+
+                                    </button>
+
+
+                                </form>
+
+
+                            </div>
+
+
+                        </div>
+
+
+                        <!-- IMPORTAR API -->
+
+
+                        <div class="col-md-6">
+
+
+                            <div class="border rounded p-3">
+
+
+                                <h6>
+
+
+                                    🔗 API de entregas
+
+
+                                </h6>
+
+
+                                <p class="text-muted">
+
+
+                                    Importa pedidos de prueba
+
+                                    desde una API externa.
+
+
+                                </p>
+
+
+                                <a
+
+
+                                    href="/importar-api"
+
+                                    class="btn btn-success">
+
+
+                                    Importar desde API
+
+
+                                </a>
+
+
+                            </div>
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- TABLA DE PEDIDOS -->
+            <!-- ================================================= -->
+
+
+            <div class="card shadow mt-4">
+
+
+                <div class="card-body">
+
+
+                    <div class="d-flex justify-content-between">
+
+
+                        <h5 class="card-title">
+
+
+                            Pedidos Registrados
+
+
+                        </h5>
+
+
+                        <span class="badge bg-secondary">
+
+
+                            Total: {{ pedidos|length }}
+
+
+                        </span>
+
+
+                    </div>
+
+
+                    <div class="table-responsive mt-3">
+
+
+                        <table
+
+                            class="table table-striped table-hover">
+
+
+                            <thead class="table-dark">
+
+
+                                <tr>
+
+
+                                    <th>
+
+                                        ID
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Cliente
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Dirección
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Producto
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Fecha de Entrega
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Prioridad
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Estado
+
+                                    </th>
+
+
+                                    <th>
+
+                                        Acción
+
+                                    </th>
+
+
+                                </tr>
+
+
+                            </thead>
+
+
+                            <tbody>
+
+
+                                {% for pedido in pedidos %}
+
+
+                                <tr>
+
+
+                                    <!-- ID -->
+
+
+                                    <td>
+
+
+                                        #{{ pedido.id }}
+
+
+                                    </td>
+
+
+                                    <!-- CLIENTE -->
+
+
+                                    <td>
+
+
+                                        {{ pedido.cliente }}
+
+
+                                    </td>
+
+
+                                    <!-- DIRECCIÓN -->
+
+
+                                    <td>
+
+
+                                        {{ pedido.direccion }}
+
+
+                                    </td>
+
+
+                                    <!-- PRODUCTO -->
+
+
+                                    <td>
+
+
+                                        {{ pedido.producto }}
+
+
+                                    </td>
+
+
+                                    <!-- FECHA -->
+
+
+                                    <td>
+
+
+                                        {{ pedido.fecha_entrega }}
+
+
+                                    </td>
+
+
+                                    <!-- PRIORIDAD -->
+
+
+                                    <td>
+
+
+                                        {% if pedido.prioridad == "Alta" %}
+
+
+                                            <span
+
+                                                class="badge bg-danger">
+
+
+                                                Alta
+
+
+                                            </span>
+
+
+                                        {% elif pedido.prioridad == "Media" %}
+
+
+                                            <span
+
+                                                class="badge bg-warning text-dark">
+
+
+                                                Media
+
+
+                                            </span>
+
+
+                                        {% else %}
+
+
+                                            <span
+
+                                                class="badge bg-success">
+
+
+                                                Baja
+
+
+                                            </span>
+
+
+                                        {% endif %}
+
+
+                                    </td>
+
+
+                                    <!-- ESTADO -->
+
+
+                                    <td>
+
+
+                                        {% if pedido.estado == "Pendiente" %}
+
+
+                                            <span
+
+                                                class="badge bg-warning text-dark">
+
+
+                                                Pendiente
+
+
+                                            </span>
+
+
+                                        {% elif pedido.estado == "En preparación" %}
+
+
+                                            <span
+
+                                                class="badge bg-info text-dark">
+
+
+                                                En preparación
+
+
+                                            </span>
+
+
+                                        {% elif pedido.estado == "En ruta" %}
+
+
+                                            <span
+
+                                                class="badge bg-primary">
+
+
+                                                En ruta
+
+
+                                            </span>
+
+
+                                        {% elif pedido.estado == "Entregado" %}
+
+
+                                            <span
+
+                                                class="badge bg-success">
+
+
+                                                Entregado
+
+
+                                            </span>
+
+
+                                        {% endif %}
+
+
+                                    </td>
+
+
+                                    <!-- ACCIONES -->
+
+
+                                    <td>
+
+
+                                        {% if pedido.estado == "Pendiente" %}
+
+
+                                            <a
+
+
+                                                href="/cambiar-estado/{{ pedido.id }}/En preparación"
+
+                                                class="btn btn-warning btn-sm">
+
+
+                                                Preparar
+
+
+                                            </a>
+
+
+                                        {% elif pedido.estado == "En preparación" %}
+
+
+                                            <a
+
+
+                                                href="/cambiar-estado/{{ pedido.id }}/En ruta"
+
+                                                class="btn btn-primary btn-sm">
+
+
+                                                Enviar a Ruta
+
+
+                                            </a>
+
+
+                                        {% elif pedido.estado == "En ruta" %}
+
+
+                                            <a
+
+
+                                                href="/cambiar-estado/{{ pedido.id }}/Entregado"
+
+                                                class="btn btn-success btn-sm">
+
+
+                                                Confirmar Entrega
+
+
+                                            </a>
+
+
+                                        {% elif pedido.estado == "Entregado" %}
+
+
+                                            <span
+
+                                                class="text-success">
+
+
+                                                ✓ Completado
+
+
+                                            </span>
+
+
+                                        {% endif %}
+
+
+                                    </td>
+
+
+                                </tr>
+
+
+                                {% else %}
+
+
+                                <tr>
+
+
+                                    <td
+
+                                        colspan="8"
+
+                                        class="text-center text-muted">
+
+
+                                        No hay pedidos registrados.
+
+
+                                    </td>
+
+
+                                </tr>
+
+
+                                {% endfor %}
+
+
+                            </tbody>
+
+
+                        </table>
+
+
+                    </div>
+
+
+                </div>
+
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+<!-- Bootstrap JavaScript -->
+
+
+<script
+
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
+
+</script>
+
+
+</body>
+
+</html>

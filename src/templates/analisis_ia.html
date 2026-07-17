@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Análisis IA - RouteMind AI</title>
+
+
+    <!-- Bootstrap -->
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+
+    <!-- Leaflet -->
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+
+    <style>
+
+        body {
+
+            background-color: #f8f9fa;
+
+        }
+
+
+        .sidebar {
+
+            min-height: 100vh;
+
+            background-color: #212529;
+
+        }
+
+
+        .sidebar a {
+
+            color: white;
+
+            text-decoration: none;
+
+            display: block;
+
+            padding: 12px;
+
+        }
+
+
+        .sidebar a:hover {
+
+            background-color: #343a40;
+
+        }
+
+
+        .main-content {
+
+            padding: 30px;
+
+        }
+
+
+        .ai-header {
+
+            background: linear-gradient(
+
+                135deg,
+
+                #212529,
+
+                #495057
+
+            );
+
+            color: white;
+
+            border-radius: 15px;
+
+            padding: 30px;
+
+            margin-bottom: 25px;
+
+        }
+
+
+        .card {
+
+            border: none;
+
+            border-radius: 12px;
+
+        }
+
+
+        .recommendation {
+
+            border-left: 5px solid #198754;
+
+            background-color: #f8f9fa;
+
+            padding: 15px;
+
+            margin-bottom: 10px;
+
+            border-radius: 5px;
+
+        }
+
+
+        .distance-card {
+
+            border-left: 5px solid #0d6efd;
+
+            background-color: #f8f9fa;
+
+            padding: 15px;
+
+            margin-bottom: 10px;
+
+            border-radius: 5px;
+
+        }
+
+
+        .group-card {
+
+            border-left: 5px solid #0dcaf0;
+
+            background-color: #f8f9fa;
+
+            padding: 15px;
+
+            margin-bottom: 15px;
+
+            border-radius: 5px;
+
+        }
+
+
+        #mapaRuta {
+
+            height: 600px;
+
+            width: 100%;
+
+            border-radius: 10px;
+
+        }
+
+
+        .numero-parada {
+
+            background-color: #212529;
+
+            color: white;
+
+            border-radius: 50%;
+
+            width: 32px;
+
+            height: 32px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-weight: bold;
+
+            border: 3px solid white;
+
+            box-shadow: 0 2px 6px rgba(
+
+                0,
+
+                0,
+
+                0,
+
+                0.4
+
+            );
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container-fluid">
+
+    <div class="row">
+
+
+        <!-- ===================================== -->
+
+        <!-- MENÚ LATERAL -->
+
+        <!-- ===================================== -->
+
+
+        <div class="col-md-2 sidebar">
+
+
+            <h3 class="text-white text-center mt-3">
+
+                RouteMind AI
+
+            </h3>
+
+
+            <hr class="text-white">
+
+
+            <a href="/">
+
+                🏠 Dashboard
+
+            </a>
+
+
+            <a href="/pedidos">
+
+                📦 Pedidos
+
+            </a>
+
+
+            <a href="/registrar-pedido">
+
+                ➕ Registrar Pedido
+
+            </a>
+
+
+            <a href="/rutas">
+
+                🗺️ Rutas
+
+            </a>
+
+
+            <a href="/reportes">
+
+                📊 Reportes
+
+            </a>
+
+
+            <a href="/ia/logistica">
+
+                🤖 Análisis IA
+
+            </a>
+
+
+            <hr class="text-white">
+
+
+            <a href="/logout">
+
+                🚪 Salir
+
+            </a>
+
+
+        </div>
+
+
+        <!-- ===================================== -->
+
+        <!-- CONTENIDO PRINCIPAL -->
+
+        <!-- ===================================== -->
+
+
+        <div class="col-md-10 main-content">
+
+
+            <!-- ENCABEZADO -->
+
+            <div class="ai-header">
+
+
+                <h2>
+
+                    🤖 Analizador Logístico Inteligente
+
+                </h2>
+
+
+                <p class="mb-0">
+
+
+                    RouteMind AI analiza los pedidos pendientes,
+
+                    sus ubicaciones y la distribución logística
+
+                    para generar recomendaciones.
+
+
+                </p>
+
+
+            </div>
+
+
+            <!-- ===================================== -->
+
+            <!-- RESUMEN -->
+
+            <!-- ===================================== -->
+
+
+            <div class="card shadow-sm mb-4">
+
+
+                <div class="card-body">
+
+
+                    <h5>
+
+                        📊 Resumen del análisis
+
+                    </h5>
+
+
+                    <p class="mb-0">
+
+
+                        {{ analisis.resumen }}
+
+
+                    </p>
+
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ===================================== -->
+
+            <!-- INFORMACIÓN DE LA RUTA -->
+
+            <!-- ===================================== -->
+
+
+            <div class="row mb-4">
+
+
+                <div class="col-md-4">
+
+
+                    <div class="card shadow-sm">
+
+
+                        <div class="card-body">
+
+
+                            <h6 class="text-muted">
+
+                                🚚 Paradas
+
+                            </h6>
+
+
+                            <h3>
+
+                                {{ analisis.ruta|length }}
+
+                            </h3>
+
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-4">
+
+
+                    <div class="card shadow-sm">
+
+
+                        <div class="card-body">
+
+
+                            <h6 class="text-muted">
+
+                                📏 Distancia estimada
+
+                            </h6>
+
+
+                            <h3>
+
+                                {{ analisis.distancia_ruta }}
+
+                                km
+
+                            </h3>
+
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-4">
+
+
+                    <div class="card shadow-sm">
+
+
+                        <div class="card-body">
+
+
+                            <h6 class="text-muted">
+
+                                ⏱️ Tiempo estimado
+
+                            </h6>
+
+
+                            <h3>
+
+                                {{ analisis.duracion_ruta }}
+
+                                min
+
+                            </h3>
+
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ===================================== -->
+
+            <!-- MAPA -->
+
+            <!-- ===================================== -->
+
+
+            <div class="card shadow-sm mb-4">
+
+
+                <div class="card-header">
+
+
+                    🗺️ Ruta logística sugerida por la IA
+
+
+                </div>
+
+
+                <div class="card-body">
+
+
+                    <p class="text-muted">
+
+
+                        La ruta sigue las calles reales y conecta
+
+                        las diferentes paradas de entrega.
+
+
+                    </p>
+
+
+                    <div id="mapaRuta"></div>
+
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ===================================== -->
+
+            <!-- ALERTAS Y RECOMENDACIONES -->
+
+            <!-- ===================================== -->
+
+
+            <div class="row">
+
+
+                <!-- ALERTAS -->
+
+
+                <div class="col-md-6">
+
+
+                    <div class="card shadow-sm mb-4">
+
+
+                        <div class="card-header">
+
+
+                            ⚠️ Alertas logísticas
+
+
+                        </div>
+
+
+                        <div class="card-body">
+
+
+                            {% if analisis.alertas %}
+
+
+                                {% for alerta in analisis.alertas %}
+
+
+                                    <div
+
+                                        class="alert alert-{{ alerta.tipo }}">
+
+
+                                        <strong>
+
+
+                                            {{ alerta.titulo }}
+
+
+                                        </strong>
+
+
+                                        <br>
+
+
+                                        {{ alerta.mensaje }}
+
+
+                                    </div>
+
+
+                                {% endfor %}
+
+
+                            {% else %}
+
+
+                                <div class="alert alert-success">
+
+
+                                    No se detectaron problemas importantes.
+
+
+                                </div>
+
+
+                            {% endif %}
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+                <!-- RECOMENDACIONES -->
+
+
+                <div class="col-md-6">
+
+
+                    <div class="card shadow-sm mb-4">
+
+
+                        <div class="card-header">
+
+
+                            💡 Recomendaciones de la IA
+
+
+                        </div>
+
+
+                        <div class="card-body">
+
+
+                            {% if analisis.recomendaciones %}
+
+
+                                {% for recomendacion in analisis.recomendaciones %}
+
+
+                                    <div class="recommendation">
+
+
+                                        🤖 {{ recomendacion }}
+
+
+                                    </div>
+
+
+                                {% endfor %}
+
+
+                            {% else %}
+
+
+                                <p class="text-muted">
+
+
+                                    No hay recomendaciones disponibles.
+
+
+                                </p>
+
+
+                            {% endif %}
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ===================================== -->
+
+            <!-- AGRUPACIONES -->
+
+            <!-- ===================================== -->
+
+
+            {% if analisis.grupos %}
+
+
+                <div class="card shadow-sm mb-4">
+
+
+                    <div class="card-header">
+
+
+                        📍 Agrupaciones de pedidos detectadas
+
+
+                    </div>
+
+
+                    <div class="card-body">
+
+
+                        <p class="text-muted">
+
+
+                            La IA detectó pedidos cercanos que podrían
+
+                            ser atendidos dentro de una misma ruta.
+
+
+                        </p>
+
+
+                        {% for grupo in analisis.grupos %}
+
+
+                            <div class="group-card">
+
+
+                                <h5>
+
+
+                                    🚚 Grupo {{ loop.index }}
+
+
+                                </h5>
+
+
+                                <p>
+
+
+                                    Pedidos sugeridos para agrupar:
+
+
+                                </p>
+
+
+                                <ul>
+
+
+                                    {% for pedido in grupo %}
+
+
+                                        <li>
+
+
+                                            <strong>
+
+
+                                                Pedido #{{ pedido.id }}
+
+
+                                            </strong>
+
+
+                                            <br>
+
+
+                                            <small>
+
+
+                                                {{ pedido.direccion }}
+
+
+                                            </small>
+
+
+                                        </li>
+
+
+                                    {% endfor %}
+
+
+                                </ul>
+
+
+                            </div>
+
+
+                        {% endfor %}
+
+
+                    </div>
+
+
+                </div>
+
+
+            {% else %}
+
+
+                <div class="card shadow-sm mb-4">
+
+
+                    <div class="card-header">
+
+
+                        📍 Agrupaciones de pedidos
+
+
+                    </div>
+
+
+                    <div class="card-body">
+
+
+                        <div class="alert alert-info mb-0">
+
+
+                            No se detectaron grupos de pedidos cercanos.
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+            {% endif %}
+
+
+            <!-- ===================================== -->
+
+            <!-- DISTANCIAS -->
+
+            <!-- ===================================== -->
+
+
+            {% if analisis.distancias %}
+
+
+                <div class="card shadow-sm mb-4">
+
+
+                    <div class="card-header">
+
+
+                        📏 Distancias entre pedidos
+
+
+                    </div>
+
+
+                    <div class="card-body">
+
+
+                        {% for distancia in analisis.distancias %}
+
+
+                            <div class="distance-card">
+
+
+                                <strong>
+
+
+                                    Pedido #{{ distancia.pedido_1 }}
+
+
+                                </strong>
+
+
+                                ↔
+
+
+                                <strong>
+
+
+                                    Pedido #{{ distancia.pedido_2 }}
+
+
+                                </strong>
+
+
+                                <br>
+
+
+                                <span class="text-muted">
+
+
+                                    Distancia aproximada:
+
+
+                                </span>
+
+
+                                <strong>
+
+
+                                    {{ distancia.distancia }} km
+
+
+                                </strong>
+
+
+                            </div>
+
+
+                        {% endfor %}
+
+
+                    </div>
+
+
+                </div>
+
+
+            {% endif %}
+
+
+            <!-- ===================================== -->
+
+            <!-- PIE -->
+
+            <!-- ===================================== -->
+
+
+            <div class="text-center text-muted mt-4">
+
+
+                <small>
+
+
+                    RouteMind AI - Análisis inteligente de logística
+
+
+                </small>
+
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ===================================== -->
+
+<!-- LEAFLET -->
+
+<!-- ===================================== -->
+
+
+<script
+
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+
+</script>
+
+
+<!-- Bootstrap -->
+
+<script
+
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
+
+</script>
+
+
+<script>
+
+
+    // ==========================================
+
+    // DATOS DESDE FLASK
+
+    // ==========================================
+
+
+    const ruta = {{ analisis.ruta | tojson }};
+
+
+    const rutaReal = {{ analisis.ruta_real | tojson }};
+
+
+    // ==========================================
+
+    // CREAR MAPA
+
+    // ==========================================
+
+
+    let mapaRuta = L.map(
+
+        'mapaRuta'
+
+    ).setView(
+
+        [19.4326, -99.1332],
+
+        11
+
+    );
+
+
+    // ==========================================
+
+    // MAPA BASE
+
+    // ==========================================
+
+
+    L.tileLayer(
+
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+
+        {
+
+            attribution:
+
+            '&copy; OpenStreetMap contributors'
+
+        }
+
+    ).addTo(
+
+        mapaRuta
+
+    );
+
+
+    // ==========================================
+
+    // MARCADORES DE LAS PARADAS
+
+    // ==========================================
+
+
+    let puntosParadas = [];
+
+
+    ruta.forEach(
+
+        function(
+
+            pedido,
+
+            index
+
+        ) {
+
+
+            let latitud = parseFloat(
+
+                pedido.latitud
+
+            );
+
+
+            let longitud = parseFloat(
+
+                pedido.longitud
+
+            );
+
+
+            if (
+
+                !isNaN(latitud)
+
+                &&
+
+                !isNaN(longitud)
+
+            ) {
+
+
+                puntosParadas.push(
+
+                    [
+
+                        latitud,
+
+                        longitud
+
+                    ]
+
+                );
+
+
+                let iconoPersonalizado = L.divIcon({
+
+                    className: '',
+
+                    html:
+
+                        `
+
+                        <div class="numero-parada">
+
+                            ${index + 1}
+
+                        </div>
+
+                        `,
+
+                    iconSize: [
+
+                        32,
+
+                        32
+
+                    ],
+
+                    iconAnchor: [
+
+                        16,
+
+                        16
+
+                    ]
+
+                });
+
+
+                let marcador = L.marker(
+
+                    [
+
+                        latitud,
+
+                        longitud
+
+                    ],
+
+                    {
+
+                        icon:
+
+                        iconoPersonalizado
+
+                    }
+
+                ).addTo(
+
+                    mapaRuta
+
+                );
+
+
+                marcador.bindPopup(
+
+                    `
+
+                    <b>🚚 Parada ${index + 1}</b>
+
+                    <hr>
+
+                    <b>Pedido:</b>
+
+                    #${pedido.id}
+
+                    <br>
+
+                    <b>Cliente:</b>
+
+                    ${pedido.cliente}
+
+                    <br>
+
+                    <b>Dirección:</b>
+
+                    ${pedido.direccion}
+
+                    <br>
+
+                    <b>Estado:</b>
+
+                    ${pedido.estado}
+
+                    `
+
+                );
+
+            }
+
+        }
+
+    );
+
+
+    // ==========================================
+
+    // DIBUJAR RUTA REAL
+
+    // ==========================================
+
+
+    if (
+
+        rutaReal.length > 1
+
+    ) {
+
+
+        L.polyline(
+
+            rutaReal,
+
+            {
+
+                weight: 6,
+
+                opacity: 0.9,
+
+                dashArray: '12, 8'
+
+            }
+
+        ).addTo(
+
+            mapaRuta
+
+        );
+
+
+        mapaRuta.fitBounds(
+
+            rutaReal,
+
+            {
+
+                padding: [
+
+                    30,
+
+                    30
+
+                ]
+
+            }
+
+        );
+
+
+    }
+
+    else if (
+
+        puntosParadas.length > 0
+
+    ) {
+
+
+        mapaRuta.fitBounds(
+
+            puntosParadas,
+
+            {
+
+                padding: [
+
+                    30,
+
+                    30
+
+                ]
+
+            }
+
+        );
+
+    }
+
+
+</script>
+
+
+</body>
+
+</html>

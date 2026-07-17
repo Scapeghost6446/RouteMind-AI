@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Rutas - RouteMind AI</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <style>
+
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .sidebar {
+            min-height: 100vh;
+            background-color: #212529;
+        }
+
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            padding: 12px;
+        }
+
+        .sidebar a:hover {
+            background-color: #343a40;
+        }
+
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container-fluid">
+
+    <div class="row">
+
+        <!-- SIDEBAR -->
+
+        <div class="col-md-2 sidebar">
+
+            <h3 class="text-white text-center mt-3">
+                RouteMind AI
+            </h3>
+
+            <hr class="text-white">
+
+            <a href="/">
+                🏠 Dashboard
+            </a>
+
+            <a href="/pedidos">
+                📦 Pedidos
+            </a>
+
+            <a href="/ia/logistica">
+                🤖 Análisis IA
+            </a>
+
+            <a href="/registrar-pedido">
+                ➕ Registrar Pedido
+            </a>
+
+            <a href="/rutas">
+                🗺️ Rutas
+            </a>
+
+            <a href="/reportes">
+                📊 Reportes
+            </a>
+
+            <a href="/logout">
+                🚪 Salir
+            </a>
+
+        </div>
+
+
+        <!-- CONTENIDO -->
+
+        <div class="col-md-10 p-4">
+
+            <h2>
+                Mapa de Entregas
+            </h2>
+
+            <p class="text-muted">
+                Ubicaciones de los pedidos registrados.
+            </p>
+
+
+            <!-- MAPA -->
+
+            <div class="card shadow">
+
+                <div class="card-body">
+
+                    <div id="map"></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- TABLA -->
+
+            <div class="card shadow mt-4">
+
+                <div class="card-body">
+
+                    <h5>
+                        Ubicaciones Encontradas
+                    </h5>
+
+                    <div class="table-responsive">
+
+                        <table class="table table-striped">
+
+                            <thead>
+
+                                <tr>
+
+                                    <th>
+                                        Cliente
+                                    </th>
+
+                                    <th>
+                                        Dirección
+                                    </th>
+
+                                    <th>
+                                        Estado
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+                            <tbody>
+
+                                {% if ubicaciones %}
+
+                                    {% for ubicacion in ubicaciones %}
+
+                                    <tr>
+
+                                        <td>
+                                            {{ ubicacion.cliente }}
+                                        </td>
+
+                                        <td>
+                                            {{ ubicacion.direccion }}
+                                        </td>
+
+                                        <td>
+                                            {{ ubicacion.estado }}
+                                        </td>
+
+                                    </tr>
+
+                                    {% endfor %}
+
+                                {% else %}
+
+                                    <tr>
+
+                                        <td colspan="3"
+                                            class="text-center">
+
+                                            No hay ubicaciones registradas.
+
+                                        </td>
+
+                                    </tr>
+
+                                {% endif %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- LEAFLET -->
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+
+<script>
+
+    // Crear el mapa
+
+    var map = L.map('map').setView(
+
+        [19.4326, -99.1332],
+
+        11
+
+    );
+
+
+    // Agregar mapa de OpenStreetMap
+
+    L.tileLayer(
+
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+
+        {
+
+            attribution:
+                '&copy; OpenStreetMap contributors'
+
+        }
+
+    ).addTo(map);
+
+
+    // Recibir ubicaciones desde Flask
+
+    const ubicaciones = {{ ubicaciones | tojson }};
+
+
+    // Crear marcadores
+
+    ubicaciones.forEach(function(ubicacion) {
+
+
+        var latitud = parseFloat(ubicacion.latitud);
+
+        var longitud = parseFloat(ubicacion.longitud);
+
+
+        // Verificar que las coordenadas sean válidas
+
+        if (!isNaN(latitud) && !isNaN(longitud)) {
+
+
+            var marker = L.marker(
+
+                [
+
+                    latitud,
+
+                    longitud
+
+                ]
+
+            ).addTo(map);
+
+
+            marker.bindPopup(
+
+                `
+
+                <b>Cliente:</b>
+
+                ${ubicacion.cliente}
+
+                <br>
+
+                <b>Dirección:</b>
+
+                ${ubicacion.direccion}
+
+                <br>
+
+                <b>Estado:</b>
+
+                ${ubicacion.estado}
+
+                `
+
+            );
+
+        }
+
+    });
+
+
+</script>
+
+
+</body>
+
+</html>
