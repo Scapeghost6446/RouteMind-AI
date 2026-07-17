@@ -1,0 +1,8 @@
+Flask
+mysql-connector-python
+pandas
+requests
+geopy
+python-dotenv
+openai
+gunicorn
