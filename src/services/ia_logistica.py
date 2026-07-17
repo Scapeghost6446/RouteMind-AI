@@ -1,57 +1,28 @@
-from math import radians, sin, cos, sqrt, atan2
+# =====================================================
+# SERVICES / IA LOGÍSTICA
+# =====================================================
+
+import requests
+
+from math import (
+    radians,
+    sin,
+    cos,
+    sqrt,
+    atan2
+)
 
 
-def calcular_distancia(lat1, lon1, lat2, lon2):
+# =====================================================
+# CALCULAR DISTANCIA ENTRE DOS PUNTOS
+# =====================================================
 
-    radio_tierra = 6371
-
-
-    lat1 = radians(lat1)
-
-    lon1 = radians(lon1)
-
-    lat2 = radians(lat2)
-
-    lon2 = radians(lon2)
-
-
-    diferencia_latitud = lat2 - lat1
-
-    diferencia_longitud = lon2 - lon1
-
-
-    a = (
-
-        sin(diferencia_latitud / 2) ** 2
-
-        +
-
-        cos(lat1)
-
-        *
-
-        cos(lat2)
-
-        *
-
-        sin(diferencia_longitud / 2) ** 2
-
-    )
-
-
-    c = 2 * atan2(
-
-        sqrt(a),
-
-        sqrt(1 - a)
-
-    )
-
-
-    return radio_tierra * c
-
-
-def calcular_distancia(lat1, lon1, lat2, lon2):
+def calcular_distancia(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+):
 
     radio_tierra = 6371
 
@@ -62,6 +33,7 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
     lon2 = radians(lon2)
 
     diferencia_latitud = lat2 - lat1
+
     diferencia_longitud = lon2 - lon1
 
     a = (
@@ -92,12 +64,274 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
 
     return radio_tierra * c
 
+
+# =====================================================
+# OBTENER RUTA OPTIMIZADA MEDIANTE OSRM
+# =====================================================
+
+def obtener_ruta_osrm(pedidos):
+
+
+    if len(pedidos) < 2:
+
+        return {
+
+            "ruta": [],
+
+            "orden": [],
+
+            "distancia": 0,
+
+            "duracion": 0
+
+        }
+
+
+    # =================================================
+    # CREAR COORDENADAS
+    # =================================================
+
+    coordenadas = ";".join(
+
+        f"{pedido['longitud']},{pedido['latitud']}"
+
+        for pedido in pedidos
+
+    )
+
+
+    # =================================================
+    # URL DE OSRM
+    # =================================================
+
+    url = (
+
+        "https://router.project-osrm.org/trip/v1/driving/"
+
+        + coordenadas
+
+    )
+
+
+    parametros = {
+
+        "source": "first",
+
+        "roundtrip": "false",
+
+        "overview": "full",
+
+        "geometries": "geojson"
+
+    }
+
+
+    try:
+
+
+        respuesta = requests.get(
+
+            url,
+
+            params=parametros,
+
+            timeout=30
+
+        )
+
+
+        # =================================================
+        # VALIDAR RESPUESTA HTTP
+        # =================================================
+
+        if respuesta.status_code != 200:
+
+            print(
+
+                "Error HTTP OSRM:",
+
+                respuesta.status_code
+
+            )
+
+
+            return {
+
+                "ruta": [],
+
+                "orden": [],
+
+                "distancia": 0,
+
+                "duracion": 0
+
+            }
+
+
+        datos = respuesta.json()
+
+
+        # =================================================
+        # VALIDAR RESPUESTA DE OSRM
+        # =================================================
+
+        if datos.get("code") != "Ok":
+
+            print(
+
+                "Error OSRM:",
+
+                datos
+
+            )
+
+
+            return {
+
+                "ruta": [],
+
+                "orden": [],
+
+                "distancia": 0,
+
+                "duracion": 0
+
+            }
+
+
+        # =================================================
+        # OBTENER ORDEN OPTIMIZADO
+        # =================================================
+
+        waypoints = datos.get(
+
+            "waypoints",
+
+            []
+
+        )
+
+
+        orden = [
+
+            waypoint["waypoint_index"]
+
+            for waypoint in waypoints
+
+        ]
+
+
+        # =================================================
+        # OBTENER RUTA
+        # =================================================
+
+        ruta = datos["trips"][0]
+
+
+        coordenadas_ruta = ruta[
+
+            "geometry"
+
+        ][
+
+            "coordinates"
+
+        ]
+
+
+        # =================================================
+        # CONVERTIR COORDENADAS PARA LEAFLET
+        # =================================================
+
+        ruta_leaflet = [
+
+            [
+
+                coordenada[1],
+
+                coordenada[0]
+
+            ]
+
+            for coordenada in coordenadas_ruta
+
+        ]
+
+
+        # =================================================
+        # CALCULAR DISTANCIA
+        # =================================================
+
+        distancia_km = round(
+
+            ruta["distance"] / 1000,
+
+            2
+
+        )
+
+
+        # =================================================
+        # CALCULAR DURACIÓN
+        # =================================================
+
+        duracion_minutos = round(
+
+            ruta["duration"] / 60
+
+        )
+
+
+        return {
+
+            "ruta": ruta_leaflet,
+
+            "orden": orden,
+
+            "distancia": distancia_km,
+
+            "duracion": duracion_minutos
+
+        }
+
+
+    except Exception as error:
+
+
+        print(
+
+            "Error obteniendo ruta optimizada:",
+
+            error
+
+        )
+
+
+        return {
+
+            "ruta": [],
+
+            "orden": [],
+
+            "distancia": 0,
+
+            "duracion": 0
+
+        }
+
+
+# =====================================================
+# ANALIZAR PEDIDOS
+# =====================================================
 
 def analizar_pedidos(pedidos):
 
 
-    if not pedidos:
+    # =================================================
+    # SI NO EXISTEN PEDIDOS
+    # =================================================
 
+    if not pedidos:
 
         return {
 
@@ -105,39 +339,28 @@ def analizar_pedidos(pedidos):
 
             "No hay pedidos pendientes para analizar.",
 
-
             "alertas": [],
-
 
             "recomendaciones": [],
 
-
             "grupos": [],
-
 
             "distancias": [],
 
-
             "ruta": [],
-
 
             "ruta_real": [],
 
-
             "distancia_ruta": 0,
-
 
             "duracion_ruta": 0
 
         }
 
 
-    # ==========================================
-
-    # PEDIDOS CON COORDENADAS
-
-    # ==========================================
-
+    # =================================================
+    # OBTENER PEDIDOS CON COORDENADAS
+    # =================================================
 
     pedidos_validos = []
 
@@ -177,12 +400,9 @@ def analizar_pedidos(pedidos):
             )
 
 
-    # ==========================================
-
+    # =================================================
     # CREAR RUTA BASE
-
-    # ==========================================
-
+    # =================================================
 
     ruta = []
 
@@ -192,7 +412,13 @@ def analizar_pedidos(pedidos):
 
         ruta.append({
 
-            "id": pedido["id"],
+            "id": pedido.get(
+
+                "id",
+
+                "Sin ID"
+
+            ),
 
 
             "cliente": pedido.get(
@@ -238,12 +464,9 @@ def analizar_pedidos(pedidos):
         })
 
 
-    # ==========================================
-
+    # =================================================
     # OPTIMIZAR RUTA
-
-    # ==========================================
-
+    # =================================================
 
     resultado_ruta = obtener_ruta_osrm(
 
@@ -252,24 +475,45 @@ def analizar_pedidos(pedidos):
     )
 
 
-    ruta_real = resultado_ruta["ruta"]
+    ruta_real = resultado_ruta.get(
+
+        "ruta",
+
+        []
+
+    )
 
 
-    orden_optimizado = resultado_ruta["orden"]
+    orden_optimizado = resultado_ruta.get(
+
+        "orden",
+
+        []
+
+    )
 
 
-    distancia_ruta = resultado_ruta["distancia"]
+    distancia_ruta = resultado_ruta.get(
+
+        "distancia",
+
+        0
+
+    )
 
 
-    duracion_ruta = resultado_ruta["duracion"]
+    duracion_ruta = resultado_ruta.get(
+
+        "duracion",
+
+        0
+
+    )
 
 
-    # ==========================================
-
+    # =================================================
     # REORDENAR PEDIDOS
-
-    # ==========================================
-
+    # =================================================
 
     ruta_optimizada = []
 
@@ -287,7 +531,9 @@ def analizar_pedidos(pedidos):
             )
 
 
-    # Si OSRM no devolvió orden
+    # =================================================
+    # RESPALDO SI OSRM NO DEVUELVE ORDEN
+    # =================================================
 
     if not ruta_optimizada:
 
@@ -295,12 +541,9 @@ def analizar_pedidos(pedidos):
         ruta_optimizada = ruta
 
 
-    # ==========================================
-
-    # ANÁLISIS DE PEDIDOS CERCANOS
-
-    # ==========================================
-
+    # =================================================
+    # ANALIZAR PEDIDOS CERCANOS
+    # =================================================
 
     alertas = []
 
@@ -345,13 +588,11 @@ def analizar_pedidos(pedidos):
 
             distancia = calcular_distancia(
 
-
                 float(
 
                     pedido_actual["latitud"]
 
                 ),
-
 
                 float(
 
@@ -359,13 +600,11 @@ def analizar_pedidos(pedidos):
 
                 ),
 
-
                 float(
 
                     pedido_comparado["latitud"]
 
                 ),
-
 
                 float(
 
@@ -380,12 +619,24 @@ def analizar_pedidos(pedidos):
 
                 "pedido_1":
 
-                pedido_actual["id"],
+                pedido_actual.get(
+
+                    "id",
+
+                    "Sin ID"
+
+                ),
 
 
                 "pedido_2":
 
-                pedido_comparado["id"],
+                pedido_comparado.get(
+
+                    "id",
+
+                    "Sin ID"
+
+                ),
 
 
                 "distancia":
@@ -400,6 +651,10 @@ def analizar_pedidos(pedidos):
 
             })
 
+
+            # ==========================================
+            # PEDIDOS A MENOS DE 1 KM
+            # ==========================================
 
             if distancia <= 1:
 
@@ -425,12 +680,9 @@ def analizar_pedidos(pedidos):
             )
 
 
-    # ==========================================
-
-    # ALERTAS
-
-    # ==========================================
-
+    # =================================================
+    # ALERTAS Y RECOMENDACIONES
+    # =================================================
 
     if grupos:
 
@@ -439,7 +691,6 @@ def analizar_pedidos(pedidos):
 
             "tipo": "warning",
 
-
             "titulo":
 
             "Pedidos cercanos detectados",
@@ -447,14 +698,14 @@ def analizar_pedidos(pedidos):
 
             "mensaje":
 
-            f"Se detectaron {len(grupos)} grupo(s) de pedidos cercanos."
+            f"Se detectaron {len(grupos)} grupo(s) de pedidos cercanos que podrían atenderse en una misma ruta."
 
         })
 
 
         recomendaciones.append(
 
-            "Agrupar pedidos cercanos para reducir desplazamientos."
+            "Agrupar los pedidos cercanos para reducir desplazamientos y costos de transporte."
 
         )
 
@@ -469,12 +720,9 @@ def analizar_pedidos(pedidos):
         )
 
 
-    # ==========================================
-
+    # =================================================
     # PEDIDOS SIN UBICACIÓN
-
-    # ==========================================
-
+    # =================================================
 
     pedidos_sin_ubicacion = (
 
@@ -494,7 +742,6 @@ def analizar_pedidos(pedidos):
 
             "tipo": "danger",
 
-
             "titulo":
 
             "Pedidos sin ubicación",
@@ -502,25 +749,21 @@ def analizar_pedidos(pedidos):
 
             "mensaje":
 
-
-            f"{pedidos_sin_ubicacion} pedido(s) no tienen coordenadas."
+            f"{pedidos_sin_ubicacion} pedido(s) no tienen coordenadas registradas."
 
         })
 
 
         recomendaciones.append(
 
-            "Completar las coordenadas de los pedidos."
+            "Completar las coordenadas de los pedidos para mejorar la planificación de rutas."
 
         )
 
 
-    # ==========================================
-
+    # =================================================
     # RECOMENDACIÓN DE RUTA
-
-    # ==========================================
-
+    # =================================================
 
     if ruta_optimizada:
 
@@ -541,18 +784,15 @@ def analizar_pedidos(pedidos):
         )
 
 
-    # ==========================================
-
+    # =================================================
     # RESUMEN
-
-    # ==========================================
-
+    # =================================================
 
     resumen = (
 
         f"Se analizaron {len(pedidos)} pedido(s). "
 
-        f"{len(pedidos_validos)} cuentan con ubicación. "
+        f"{len(pedidos_validos)} cuentan con ubicación geográfica. "
 
         f"La ruta optimizada tiene "
 
@@ -565,8 +805,11 @@ def analizar_pedidos(pedidos):
     )
 
 
-    return {
+    # =================================================
+    # RESULTADO FINAL
+    # =================================================
 
+    return {
 
         "resumen":
 
@@ -612,255 +855,4 @@ def analizar_pedidos(pedidos):
 
         duracion_ruta
 
-
     }
-
-def obtener_ruta_osrm(pedidos):
-
-
-    if len(pedidos) < 2:
-
-        return {
-
-            "ruta": [],
-
-            "orden": [],
-
-            "distancia": 0,
-
-            "duracion": 0
-
-        }
-
-
-    # ==========================================
-
-    # CREAR COORDENADAS
-
-    # ==========================================
-
-
-    coordenadas = ";".join(
-
-        f"{pedido['longitud']},{pedido['latitud']}"
-
-        for pedido in pedidos
-
-    )
-
-
-    # ==========================================
-
-    # API TRIP DE OSRM
-
-    # ==========================================
-
-
-    url = (
-
-        "https://router.project-osrm.org/trip/v1/driving/"
-
-        + coordenadas
-
-    )
-
-
-    parametros = {
-
-
-        "source": "first",
-
-
-        "roundtrip": "false",
-
-
-        "overview": "full",
-
-
-        "geometries": "geojson"
-
-
-    }
-
-
-    try:
-
-
-        respuesta = requests.get(
-
-            url,
-
-            params=parametros,
-
-            timeout=30
-
-        )
-
-
-        if respuesta.status_code != 200:
-
-
-            print(
-
-                "Error HTTP OSRM:",
-
-                respuesta.status_code
-
-            )
-
-
-            return {
-
-                "ruta": [],
-
-                "orden": [],
-
-                "distancia": 0,
-
-                "duracion": 0
-
-            }
-
-
-        datos = respuesta.json()
-
-
-        if datos.get("code") != "Ok":
-
-
-            print(
-
-                "Error OSRM:",
-
-                datos
-
-            )
-
-
-            return {
-
-                "ruta": [],
-
-                "orden": [],
-
-                "distancia": 0,
-
-                "duracion": 0
-
-            }
-
-
-        # ==========================================
-
-        # ORDEN OPTIMIZADO
-
-        # ==========================================
-
-
-        waypoints = datos.get(
-
-            "waypoints",
-
-            []
-
-        )
-
-
-        orden = [
-
-            waypoint["waypoint_index"]
-
-            for waypoint in waypoints
-
-        ]
-
-
-        # ==========================================
-
-        # RUTA CALCULADA
-
-        # ==========================================
-
-
-        ruta = datos["trips"][0]
-
-
-        coordenadas_ruta = ruta["geometry"]["coordinates"]
-
-
-        ruta_leaflet = [
-
-            [
-
-                coordenada[1],
-
-                coordenada[0]
-
-            ]
-
-            for coordenada in coordenadas_ruta
-
-        ]
-
-
-        distancia_km = round(
-
-            ruta["distance"] / 1000,
-
-            2
-
-        )
-
-
-        duracion_minutos = round(
-
-            ruta["duration"] / 60
-
-        )
-
-
-        return {
-
-
-            "ruta": ruta_leaflet,
-
-
-            "orden": orden,
-
-
-            "distancia": distancia_km,
-
-
-            "duracion": duracion_minutos
-
-
-        }
-
-
-    except Exception as e:
-
-
-        print(
-
-            "Error obteniendo ruta optimizada:",
-
-            e
-
-        )
-
-
-        return {
-
-
-            "ruta": [],
-
-
-            "orden": [],
-
-
-            "distancia": 0,
-
-
-            "duracion": 0
-
-        }
